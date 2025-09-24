@@ -14,4 +14,20 @@
             </div>
         </div>
     </div>
+
+    <div class="p-6">
+        <p>Papel atual: <strong>{{ auth()->user()->role }}</strong></p>
+
+        @can('admin')
+        <p>Você tem acesso de <strong>Admin</strong>.</p>
+        @endcan
+
+        @can('vendedor')
+        <p>Você tem acesso de <strong>Vendedor</strong>.</p>
+        @endcan
+
+        @can('visualizador')
+        <p>Você tem acesso de <strong>Visualizador</strong>.</p>
+        @endcan
+    </div>
 </x-app-layout>
