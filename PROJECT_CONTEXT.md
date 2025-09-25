@@ -27,9 +27,9 @@ e padrões usados em projetos reais do mercado.
 | Tecnologia | Decisão |
 |---|---|
 | Blade | Template engine padrão do Laravel. Familiar, simples, sem configuração extra |
-| Livewire | Interatividade sem JavaScript manual. Instalado sem Node.js/Vite |
-| CSS | Bootstrap via CDN por enquanto. Sem compilação de assets neste momento |
-| Node.js / Vite | **Não utilizado** nesta fase. Decisão consciente para não misturar conceitos |
+| Livewire | Interatividade sem JavaScript manual. A ser instalado na Fase 3 |
+| CSS | Tailwind CSS compilado via Vite (gerado pelo Breeze) |
+| Node.js 20 LTS | Instalado no container Docker para compilação de assets com Vite |
 
 ### Banco de Dados
 | Tecnologia | Decisão |
@@ -44,8 +44,10 @@ e padrões usados em projetos reais do mercado.
 | Docker | Ambiente isolado e reproduzível |
 | PHP-FPM | Servidor de processos PHP (mais próximo de produção que `artisan serve`) |
 | Nginx | Servidor web. Expõe apenas `/public`, o restante do código fica protegido |
-| Composer | Gerenciado localmente no Ubuntu do desenvolvedor |
+| Node.js 20 LTS | Instalado no container app para compilação de assets |
+| Composer | Rodado **dentro do container** via `docker-compose exec app composer` |
 | Artisan | CLI do Laravel, rodado via `docker-compose exec app php artisan ...` |
+| npm | Rodado **dentro do container** via `docker-compose exec app npm` |
 
 ### Decisões de Segurança
 - Usuário de banco dedicado (`pedido_venda_user`) com acesso apenas ao banco do projeto — princípio do menor privilégio
@@ -124,16 +126,25 @@ products        → compõe   →    order_items
 - [x] Migrations padrão do Laravel executadas (`users`, `sessions`, `cache`, `jobs`)
 - [x] Aplicação acessível em `http://localhost:8080`
 - [x] Modelagem do banco de dados definida (entidades, relacionamentos e decisões de design)
+- [x] Node.js 20 LTS adicionado ao Dockerfile do container `app`
+- [x] Laravel Breeze instalado com stack Blade + Tailwind + Vite
+- [x] Assets compilados com `npm run build`
+- [x] Autenticação funcionando: login, registro, logout, recuperação de senha
+- [x] Campo `role` adicionado à tabela `users` via migration (`admin`, `vendedor`, `visualizador`)
+- [x] Model `User` atualizado: `role` adicionado ao `$fillable` e `$casts`
+- [x] Gates definidos no `AppServiceProvider` com hierarquia de papéis
+- [x] Seeder `UserSeeder` criado com três usuários de teste
+- [x] Permissões do `storage/` e `bootstrap/cache/` configuradas corretamente
 
 ---
 
 ## 6. Próximos Passos
 
-### Fase 1 — Autenticação
-- [ ] Instalar e configurar o **Laravel Breeze**
-- [ ] Entender rotas protegidas com `middleware('auth')`
-- [ ] Adicionar o campo `role` na tabela `users`
-- [ ] Configurar **Policies e Gates** para controle de acesso por papel
+### Fase 1 — Autenticação ✅
+- [x] Instalar e configurar o **Laravel Breeze**
+- [x] Entender rotas protegidas com `middleware('auth')`
+- [x] Adicionar o campo `role` na tabela `users`
+- [x] Configurar **Gates** para controle de acesso por papel
 
 ### Fase 2 — Migrations e Models
 - [ ] Criar migrations para `customers`, `products`, `orders`, `order_items`
@@ -187,9 +198,16 @@ products        → compõe   →    order_items
 - Um commit por funcionalidade concluída
 
 ### Docker
-- Comandos Artisan sempre via `docker-compose exec app php artisan ...`
-- Composer sempre via terminal local (PHP instalado no Ubuntu)
+- **Todos os comandos rodam dentro do container** — nunca localmente
+- `composer` → `docker-compose exec app composer`
+- `php artisan` → `docker-compose exec app php artisan`
+- `npm` → `docker-compose exec app npm`
 - Dados do banco persistidos em volume nomeado (`db_data`)
+
+### Permissões
+- `storage/` e `bootstrap/cache/` pertencem ao `www-data` (usuário do PHP-FPM)
+- Permissão `777` nessas pastas em desenvolvimento para acesso simultâneo do container e do usuário local
+- Comando para corrigir permissões quando necessário (ver seção 8)
 
 ---
 
@@ -211,8 +229,19 @@ docker-compose exec app php artisan <comando>
 # Rodar migrations
 docker-compose exec app php artisan migrate
 
-# Corrigir permissões de storage (quando necessário)
+# Recriar banco do zero e rodar seeders (apenas em desenvolvimento)
+docker-compose exec app php artisan migrate:fresh --seed
+
+# Instalar dependências PHP
+docker-compose exec app composer install
+
+# Instalar dependências JS e compilar assets
+docker-compose exec app npm install
+docker-compose exec app npm run build
+
+# Corrigir permissões de storage
 docker-compose exec app chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache
+docker-compose exec app chmod -R 777 /var/www/storage /var/www/bootstrap/cache
 
 # Acessar o banco via container
 docker-compose exec db mariadb -u pedido_venda_user -p pedidos_venda
@@ -220,4 +249,14 @@ docker-compose exec db mariadb -u pedido_venda_user -p pedidos_venda
 
 ---
 
-*Última atualização: ambiente configurado e funcionando. Próximo passo: autenticação com Laravel Breeze.*
+## 9. Usuários de Teste (Seeder)
+
+| Nome | E-mail | Senha | Papel |
+|---|---|---|---|
+| Administrador | admin@admin.com | password | admin |
+| Vendedor | vendedor@vendedor.com | password | vendedor |
+| Visualizador | visualizador@visualizador.com | password | visualizador |
+
+---
+
+*Última atualização: Fase 1 concluída. Autenticação com Breeze, Gates e Seeders funcionando. Próximo passo: Fase 2 — Migrations e Models.*
