@@ -13,6 +13,9 @@ consolidação de boas práticas e construção de portfólio para vagas de dese
 O objetivo é evoluir o projeto gradualmente — começando simples e incorporando ferramentas
 e padrões usados em projetos reais do mercado.
 
+Módulos previstos: autenticação de usuários, cadastro de clientes, cadastro de produtos
+e pedidos de venda.
+
 ---
 
 ## 2. Stack e Decisões Técnicas
@@ -20,62 +23,59 @@ e padrões usados em projetos reais do mercado.
 ### Linguagem e Framework
 | Tecnologia | Versão | Motivo |
 |---|---|---|
-| PHP | 8.2 | Versão estável e amplamente adotada no mercado |
+| PHP | 8.3 | Versão estável instalada no host Ubuntu |
 | Laravel | 12 | Versão anterior à 13 (muito recente), mais madura e com mais referências |
+| Composer | 2.x | Gerenciador de dependências PHP, rodado no host |
 
 ### Front-end
 | Tecnologia | Decisão |
 |---|---|
 | Blade | Template engine padrão do Laravel. Familiar, simples, sem configuração extra |
 | Livewire | Interatividade sem JavaScript manual. A ser instalado na Fase 3 |
-| CSS | Tailwind CSS compilado via Vite (gerado pelo Breeze) |
-| Node.js 20 LTS | Instalado no container Docker para compilação de assets com Vite |
+| Tailwind CSS | Compilado via Vite (gerado pelo Breeze) |
+| Node.js | Instalado no host para compilação de assets com Vite via npm |
 
 ### Banco de Dados
 | Tecnologia | Decisão |
 |---|---|
-| MariaDB 11 | Alternativa open-source ao MySQL, totalmente compatível |
+| MariaDB 11 | Alternativa open-source ao MySQL, totalmente compatível. Roda em container Docker |
 | Driver | `pdo_mysql` (extensão PHP padrão para MySQL/MariaDB) |
 | Charset | `utf8mb4` com collation `utf8mb4_unicode_ci` (UTF-8 completo, suporta emojis) |
 
 ### Infraestrutura / Ambiente
 | Tecnologia | Decisão |
 |---|---|
-| Docker | Ambiente isolado e reproduzível |
-| PHP-FPM | Servidor de processos PHP (mais próximo de produção que `artisan serve`) |
-| Nginx | Servidor web. Expõe apenas `/public`, o restante do código fica protegido |
-| Node.js 20 LTS | Instalado no container app para compilação de assets |
-| Composer | Rodado **dentro do container** via `docker-compose exec app composer` |
-| Artisan | CLI do Laravel, rodado via `docker-compose exec app php artisan ...` |
-| npm | Rodado **dentro do container** via `docker-compose exec app npm` |
+| Docker | Usado exclusivamente para o banco de dados (MariaDB) |
+| PHP (host) | PHP 8.3 instalado diretamente no Ubuntu — roda Artisan, serve a aplicação |
+| Composer (host) | Instalado no Ubuntu — gerencia dependências PHP |
+| npm (host) | Instalado no Ubuntu — compila assets com Vite |
+| `php artisan serve` | Servidor de desenvolvimento embutido do Laravel |
 
 ### Decisões de Segurança
 - Usuário de banco dedicado (`pedido_venda_user`) com acesso apenas ao banco do projeto — princípio do menor privilégio
-- Pasta `public/` é a única exposta pelo Nginx
 - Arquivo `.env` no `.gitignore` — credenciais nunca vão ao repositório
 - `.env.example` versionado como template sem valores sensíveis
 
 ---
 
-## 3. Estrutura de Containers Docker
+## 3. Estrutura do Ambiente
 
 ```
 ┌─────────────────────────────────────────┐
-│              docker-compose             │
+│              Ubuntu (host)              │
 │                                         │
-│  ┌──────────┐   ┌──────────────────┐    │
-│  │  nginx   │──▶│  app (PHP-FPM)   │    │
-│  │ :8080    │   │  :9000           │    │
-│  └──────────┘   └────────┬─────────┘    │
-│                          │              │
-│                 ┌────────▼─────────┐    │
-│                 │  db (MariaDB)    │    │
-│                 │  :3306           │    │
-│                 └──────────────────┘    │
+│  PHP 8.3 + Composer + npm               │
+│  php artisan serve → :8000              │
+│                                         │
+│  ┌──────────────────────────────────┐   │
+│  │  Docker                          │   │
+│  │  ┌────────────────────────────┐  │   │
+│  │  │  db (MariaDB 11) → :3306   │  │   │
+│  │  └────────────────────────────┘  │   │
+│  └──────────────────────────────────┘   │
 └─────────────────────────────────────────┘
 ```
 
-**Rede:** `laravel-pedido-venda_network` (bridge)
 **Volume persistente:** `db_data` (dados do banco sobrevivem ao `docker-compose down`)
 
 ---
@@ -121,12 +121,13 @@ products        → compõe   →    order_items
 ## 5. O que Foi Implementado
 
 - [x] Projeto Laravel 12 criado via `composer create-project`
-- [x] Ambiente Docker configurado (PHP-FPM + Nginx + MariaDB)
-- [x] Arquivo `.env` configurado com conexão ao banco via nome do serviço Docker (`DB_HOST=db`)
+- [x] Ambiente Docker configurado — apenas MariaDB em container
+- [x] PHP 8.3, Composer e npm instalados no host Ubuntu
+- [x] Extensão `pdo_mysql` instalada no host (`php8.3-mysql`)
+- [x] Arquivo `.env` configurado com `DB_HOST=127.0.0.1` (banco via Docker na porta 3306)
 - [x] Migrations padrão do Laravel executadas (`users`, `sessions`, `cache`, `jobs`)
-- [x] Aplicação acessível em `http://localhost:8080`
+- [x] Aplicação acessível em `http://localhost:8000` via `php artisan serve`
 - [x] Modelagem do banco de dados definida (entidades, relacionamentos e decisões de design)
-- [x] Node.js 20 LTS adicionado ao Dockerfile do container `app`
 - [x] Laravel Breeze instalado com stack Blade + Tailwind + Vite
 - [x] Assets compilados com `npm run build`
 - [x] Autenticação funcionando: login, registro, logout, recuperação de senha
@@ -134,7 +135,6 @@ products        → compõe   →    order_items
 - [x] Model `User` atualizado: `role` adicionado ao `$fillable` e `$casts`
 - [x] Gates definidos no `AppServiceProvider` com hierarquia de papéis
 - [x] Seeder `UserSeeder` criado com três usuários de teste
-- [x] Permissões do `storage/` e `bootstrap/cache/` configuradas corretamente
 
 ---
 
@@ -166,7 +166,7 @@ products        → compõe   →    order_items
 
 ### Fase 5 — Portfólio
 - [ ] Painel administrativo com **Filament**
-- [ ] Deploy com Docker em produção
+- [ ] Deploy com Docker em produção (stack completa: PHP-FPM + Nginx + MariaDB)
 - [ ] Documentação da API (se aplicável)
 
 ---
@@ -197,54 +197,47 @@ products        → compõe   →    order_items
 - Migrations para toda alteração de banco — nunca alterar o banco manualmente
 - Um commit por funcionalidade concluída
 
-### Docker
-- **Todos os comandos rodam dentro do container** — nunca localmente
-- `composer` → `docker-compose exec app composer`
-- `php artisan` → `docker-compose exec app php artisan`
-- `npm` → `docker-compose exec app npm`
-- Dados do banco persistidos em volume nomeado (`db_data`)
-
-### Permissões
-- `storage/` e `bootstrap/cache/` pertencem ao `www-data` (usuário do PHP-FPM)
-- Permissão `777` nessas pastas em desenvolvimento para acesso simultâneo do container e do usuário local
-- Comando para corrigir permissões quando necessário (ver seção 8)
+### Ambiente de Desenvolvimento
+- PHP, Composer, Artisan e npm rodam **diretamente no host** Ubuntu
+- Apenas o banco de dados (MariaDB) roda em container Docker
+- Comandos sem prefixo — `php artisan`, `composer`, `npm` direto no terminal
 
 ---
 
 ## 8. Comandos Úteis
 
 ```bash
-# Subir o ambiente
+# Subir o banco de dados
 docker-compose up -d
 
-# Derrubar o ambiente
+# Derrubar o banco de dados
 docker-compose down
 
-# Ver logs de um container
-docker-compose logs -f app
+# Ver logs do banco
+docker-compose logs -f db
 
-# Rodar comando Artisan
-docker-compose exec app php artisan <comando>
+# Subir a aplicação
+php artisan serve
+# → acessível em http://localhost:8000
 
 # Rodar migrations
-docker-compose exec app php artisan migrate
+php artisan migrate
 
 # Recriar banco do zero e rodar seeders (apenas em desenvolvimento)
-docker-compose exec app php artisan migrate:fresh --seed
+php artisan migrate:fresh --seed
 
 # Instalar dependências PHP
-docker-compose exec app composer install
+composer install
 
 # Instalar dependências JS e compilar assets
-docker-compose exec app npm install
-docker-compose exec app npm run build
+npm install
+npm run build
 
-# Corrigir permissões de storage
-docker-compose exec app chown -R www-data:www-data /var/www/storage /var/www/bootstrap/cache
-docker-compose exec app chmod -R 777 /var/www/storage /var/www/bootstrap/cache
+# Compilar assets em modo watch (desenvolvimento)
+npm run dev
 
 # Acessar o banco via container
-docker-compose exec db mariadb -u pedido_venda_user -p pedidos_venda
+docker-compose exec db mariadb -u pedido_venda_user -p laravel-pedido-venda
 ```
 
 ---
@@ -259,4 +252,4 @@ docker-compose exec db mariadb -u pedido_venda_user -p pedidos_venda
 
 ---
 
-*Última atualização: Fase 1 concluída. Autenticação com Breeze, Gates e Seeders funcionando. Próximo passo: Fase 2 — Migrations e Models.*
+*Última atualização: Ambiente simplificado — PHP/Composer/Artisan/npm no host Ubuntu, MariaDB em Docker. Fase 1 concluída. Próximo passo: Fase 2 — Migrations e Models.*
