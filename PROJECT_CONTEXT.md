@@ -56,6 +56,16 @@ e pedidos de venda.
 - Arquivo `.env` no `.gitignore` — credenciais nunca vão ao repositório
 - `.env.example` versionado como template sem valores sensíveis
 
+### Decisões de Modelagem (Fase 2)
+| Decisão | Escolha | Motivo |
+|---|---|---|
+| `orders.status` | Enum PHP nativo (`App\Enums\OrderStatus`), coluna no banco como `string` | Alterar um ENUM nativo do MySQL/MariaDB exige `ALTER TABLE ... MODIFY`, mais custoso. Com `string` + cast de Enum PHP, novos status são adicionados só editando a classe, sem migration |
+| Soft deletes | Apenas em `customers` (`deleted_at`) | `orders` nunca é excluído — nem física nem logicamente — apenas muda de status. É registro histórico imutável |
+| `customers.document` (CPF/CNPJ) | Sem `unique()` por enquanto | Decisão consciente para simplificar a Fase 2; pode ser adicionada depois via nova migration se necessário |
+| `order_items.unit_price` | Copiado do produto no momento da criação do item (nunca referência dinâmica) | Preserva o preço histórico da venda, mesmo que o preço do produto mude depois |
+| `orders.total` | Armazenado e recalculado via `Order::recalculateTotal()` | Não é calculado dinamicamente em toda consulta — evita custo de agregação repetida e mantém o valor congelado após confirmação |
+| FKs com `cascadeOnDelete()` | Apenas em `order_items.order_id` | Única cascade necessária, já que `orders` é imutável na prática; demais FKs ficam sem cascade para evitar exclusão acidental de dados históricos |
+
 ---
 
 ## 3. Estrutura do Ambiente
@@ -99,27 +109,31 @@ products        → compõe   →    order_items
 
 **`customers`** — clientes (quem compra)
 - Separado de `users` intencionalmente: cliente ≠ usuário do sistema
-- `document`: CPF ou CNPJ
+- `document`: CPF ou CNPJ (sem constraint `unique`)
+- Soft deletes (`deleted_at`)
 
 **`products`** — produtos disponíveis para venda
 - `active` boolean: permite desativar sem excluir (preserva histórico)
-- `price`: preço atual do produto
+- `price`: preço atual do produto (`decimal(10,2)`)
 
 **`orders`** — cabeçalho do pedido
-- `status` enum: `aberto`, `confirmado`, `entregue`, `cancelado`
-- `total`: valor calculado e armazenado (imutável — não recalculado se preço mudar)
+- `status`: string no banco, casteado para Enum PHP `App\Enums\OrderStatus` (`aberto`, `confirmado`, `entregue`, `cancelado`)
+- `total`: valor calculado e armazenado (imutável — não recalculado se preço mudar; atualizado via `recalculateTotal()`)
 - `user_id`: FK para o usuário que registrou o pedido
 - `customer_id`: FK para o cliente
+- Sem soft delete — pedidos nunca são excluídos, só mudam de status
 
 **`order_items`** — itens do pedido (tabela pivô entre orders e products)
 - `unit_price`: preço no momento da venda (imutável — histórico correto)
 - `quantity`: quantidade do item
 - `subtotal`: `quantity × unit_price`, armazenado por conveniência
+- `order_id` com `cascadeOnDelete()`
 
 ---
 
 ## 5. O que Foi Implementado
 
+### Fase 1 — Autenticação
 - [x] Projeto Laravel 12 criado via `composer create-project`
 - [x] Ambiente Docker configurado — apenas MariaDB em container
 - [x] PHP 8.3, Composer e npm instalados no host Ubuntu
@@ -127,7 +141,6 @@ products        → compõe   →    order_items
 - [x] Arquivo `.env` configurado com `DB_HOST=127.0.0.1` (banco via Docker na porta 3306)
 - [x] Migrations padrão do Laravel executadas (`users`, `sessions`, `cache`, `jobs`)
 - [x] Aplicação acessível em `http://localhost:8000` via `php artisan serve`
-- [x] Modelagem do banco de dados definida (entidades, relacionamentos e decisões de design)
 - [x] Laravel Breeze instalado com stack Blade + Tailwind + Vite
 - [x] Assets compilados com `npm run build`
 - [x] Autenticação funcionando: login, registro, logout, recuperação de senha
@@ -135,6 +148,22 @@ products        → compõe   →    order_items
 - [x] Model `User` atualizado: `role` adicionado ao `$fillable` e `$casts`
 - [x] Gates definidos no `AppServiceProvider` com hierarquia de papéis
 - [x] Seeder `UserSeeder` criado com três usuários de teste
+
+### Fase 2 — Migrations, Models e Seeders
+- [x] Migrations criadas para `customers`, `products`, `orders`, `order_items`
+- [x] Enum PHP nativo `App\Enums\OrderStatus` criado (com método `label()`)
+- [x] Models `Customer`, `Product`, `Order`, `OrderItem` criados com relacionamentos Eloquent (`hasMany`, `belongsTo`)
+- [x] Relacionamento `User::orders()` adicionado
+- [x] `$fillable` e `$casts` configurados em todos os Models (incluindo `decimal:2` para valores monetários e cast de Enum em `Order::status`)
+- [x] Método `Order::recalculateTotal()` implementado
+- [x] Faker configurado com locale `pt_BR` em `config/app.php` (`fake()->cpf()`, `fake()->cnpj()`)
+- [x] Factories criadas: `CustomerFactory`, `ProductFactory`, `OrderFactory` (com hook `afterCreating` para gerar itens), `OrderItemFactory`
+- [x] `DatabaseSeeder` atualizado para popular `customers`, `products` e `orders` reaproveitando registros existentes via `inRandomOrder()->first()`
+- [x] `migrate:fresh --seed` validado — totais dos pedidos batem com a soma dos itens
+
+**Problemas encontrados e resolvidos na Fase 2** *(registrado para referência futura)*:
+- `Unknown format "cnpj"` no Faker → causado pela linha padrão `'faker_locale' => env('APP_FAKER_LOCALE', 'pt_BR')` em `config/app.php` não estar de fato resolvendo para `pt_BR` (conflito com `.env`/cache). Corrigido fixando o valor diretamente: `'faker_locale' => 'pt_BR'`
+- `Class "App\Enums\OrderStatus" not found` → o `php artisan make:enum OrderStatus` criou o arquivo em diretório diferente do esperado. Corrigido movendo o arquivo para `app/Enums/OrderStatus.php`, compatível com o namespace `App\Enums` (PSR-4)
 
 ---
 
@@ -146,10 +175,10 @@ products        → compõe   →    order_items
 - [x] Adicionar o campo `role` na tabela `users`
 - [x] Configurar **Gates** para controle de acesso por papel
 
-### Fase 2 — Migrations e Models
-- [ ] Criar migrations para `customers`, `products`, `orders`, `order_items`
-- [ ] Criar Models com relacionamentos Eloquent (`hasMany`, `belongsTo`, `belongsToMany`)
-- [ ] Criar Seeders para popular o banco com dados de exemplo
+### Fase 2 — Migrations e Models ✅
+- [x] Criar migrations para `customers`, `products`, `orders`, `order_items`
+- [x] Criar Models com relacionamentos Eloquent (`hasMany`, `belongsTo`, `belongsToMany`)
+- [x] Criar Seeders para popular o banco com dados de exemplo
 
 ### Fase 3 — Livewire e CRUD
 - [ ] Instalar o **Livewire**
@@ -190,6 +219,7 @@ products        → compõe   →    order_items
 - Preços e valores monetários como `decimal(10, 2)`
 - Nunca excluir registros que fazem parte de histórico — usar `active` ou `soft deletes`
 - Armazenar `unit_price` no item do pedido — nunca recalcular pelo preço atual do produto
+- Status de entidades com fluxo de ciclo de vida (ex: `orders.status`) usam Enum PHP nativo casteado, não ENUM de banco
 
 ### Laravel
 - Lógica de negócio nos Models ou Services — Controllers finos
@@ -238,6 +268,9 @@ npm run dev
 
 # Acessar o banco via container
 docker-compose exec db mariadb -u pedido_venda_user -p laravel-pedido-venda
+
+# Limpar cache de config (útil se alterações em config/*.php não refletirem)
+php artisan config:clear
 ```
 
 ---
@@ -252,4 +285,4 @@ docker-compose exec db mariadb -u pedido_venda_user -p laravel-pedido-venda
 
 ---
 
-*Última atualização: Ambiente simplificado — PHP/Composer/Artisan/npm no host Ubuntu, MariaDB em Docker. Fase 1 concluída. Próximo passo: Fase 2 — Migrations e Models.*
+*Última atualização: Fase 2 concluída — migrations, models, relacionamentos, Enum de status, factories e seeders implementados e validados. Próximo passo: Fase 3 — Livewire e CRUD.*
