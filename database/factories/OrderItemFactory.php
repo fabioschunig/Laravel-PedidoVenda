@@ -21,13 +21,13 @@ class OrderItemFactory extends Factory
         $product = Product::inRandomOrder()->first()
             ?? Product::factory()->create();
 
-        $quantity = fake()->numberBetween(1, 5);
+        $quantity = fake()->randomFloat(2, 1, 5);
 
         return [
             'product_id' => $product->id,
             'quantity' => $quantity,
             'unit_price' => $product->price,
-            'subtotal' => $quantity * $product->price,
+            'subtotal' => round($quantity * $product->price, 2),
         ];
     }
 }
