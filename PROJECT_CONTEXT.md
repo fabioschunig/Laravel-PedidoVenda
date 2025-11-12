@@ -169,6 +169,20 @@ products        → compõe   →    order_items
 ### Ajustes pós-Fase 2
 - [x] `order_items.quantity` alterado de `unsignedInteger` para `decimal(10,2)`, via migration adicional (`change_quantity_to_decimal_in_order_items_table`) usando `->change()`. Motivo: permitir quantidades fracionárias (venda por peso/medida). `$casts` do Model `OrderItem` e `OrderItemFactory` (com `randomFloat`) atualizados de acordo
 
+### Fase 3 — Livewire e CRUD (em andamento)
+- [x] Livewire instalado (`composer require livewire/livewire`)
+- [x] `@livewireStyles` e `@livewireScripts` adicionados ao `layouts/app.blade.php`
+- [x] Gate `manage-customers` criada no `AppServiceProvider` (regra: `admin` e `vendedor` têm acesso total; `visualizador` só leitura)
+- [x] CRUD de Clientes completo via componentes Livewire full-page:
+  - `App\Livewire\Customers\Index` — listagem com busca (nome/documento/e-mail) e paginação
+  - `App\Livewire\Customers\Create` e `Edit` — páginas separadas (não modal), com validação via `rules()`
+  - Exclusão (soft delete) feita direto no `Index`, protegida por `Gate::authorize()`
+- [x] Rotas de clientes protegidas com `middleware('can:manage-customers')` em criar/editar; listagem acessível a todos autenticados
+
+**Problemas encontrados e resolvidos na Fase 3** *(registrado para referência futura)*:
+- `MissingLayoutException: Livewire page component layout view not found: [components.layouts.app]` → Livewire 3, ao usar um componente como página inteira (via rota), procura por padrão um layout em `resources/views/components/layouts/app.blade.php`. O Breeze cria o layout em `resources/views/layouts/app.blade.php` (sem ser Blade component). Corrigido publicando a config (`php artisan livewire:publish --config`) e ajustando `'layout' => 'layouts.app'` em `config/livewire.php`
+- `Uncaught (in promise) TypeError: Alpine.navigate is not a function` ao usar `redirect(..., navigate: true)` → conflito entre a instância do Alpine.js importada manualmente pelo Breeze em `resources/js/app.js` e a instância própria (com plugins) que o Livewire injeta via `@livewireScripts`. Corrigido removendo a importação e inicialização manual do Alpine (`import Alpine from 'alpinejs'`, `window.Alpine = Alpine`, `Alpine.start()`) do `app.js`, deixando o Livewire ser a única fonte do Alpine
+
 ---
 
 ## 6. Próximos Passos
@@ -185,8 +199,8 @@ products        → compõe   →    order_items
 - [x] Criar Seeders para popular o banco com dados de exemplo
 
 ### Fase 3 — Livewire e CRUD
-- [ ] Instalar o **Livewire**
-- [ ] CRUD de Clientes
+- [X] Instalar o **Livewire**
+- [X] CRUD de Clientes
 - [ ] CRUD de Produtos
 - [ ] Criação e gestão de Pedidos (com itens dinâmicos)
 - [ ] Filtros, paginação e validação em tempo real
@@ -289,4 +303,4 @@ php artisan config:clear
 
 ---
 
-*Última atualização: Fase 2 concluída e ajustada — migrations, models, relacionamentos, Enum de status, factories e seeders implementados e validados; `order_items.quantity` migrado para `decimal(10,2)` para suportar quantidades fracionárias. Próximo passo: Fase 3 — Livewire e CRUD.*
+*Última atualização: Fase 3 iniciada — instalação do Livewire e CRUD de Clientes. Próximo passo: Fase 3 — CRUD de produtos.*
