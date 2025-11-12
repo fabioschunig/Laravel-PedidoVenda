@@ -63,6 +63,7 @@ e pedidos de venda.
 | Soft deletes | Apenas em `customers` (`deleted_at`) | `orders` nunca é excluído — nem física nem logicamente — apenas muda de status. É registro histórico imutável |
 | `customers.document` (CPF/CNPJ) | Sem `unique()` por enquanto | Decisão consciente para simplificar a Fase 2; pode ser adicionada depois via nova migration se necessário |
 | `order_items.unit_price` | Copiado do produto no momento da criação do item (nunca referência dinâmica) | Preserva o preço histórico da venda, mesmo que o preço do produto mude depois |
+| `order_items.quantity` | `decimal(10,2)` em vez de inteiro (alterado após Fase 2) | Permite vender produtos por peso/medida fracionária (ex: 2,5 kg), não só unidades inteiras |
 | `orders.total` | Armazenado e recalculado via `Order::recalculateTotal()` | Não é calculado dinamicamente em toda consulta — evita custo de agregação repetida e mantém o valor congelado após confirmação |
 | FKs com `cascadeOnDelete()` | Apenas em `order_items.order_id` | Única cascade necessária, já que `orders` é imutável na prática; demais FKs ficam sem cascade para evitar exclusão acidental de dados históricos |
 
@@ -125,7 +126,7 @@ products        → compõe   →    order_items
 
 **`order_items`** — itens do pedido (tabela pivô entre orders e products)
 - `unit_price`: preço no momento da venda (imutável — histórico correto)
-- `quantity`: quantidade do item
+- `quantity`: quantidade do item, `decimal(10,2)` — permite frações (ex: 2,5 kg)
 - `subtotal`: `quantity × unit_price`, armazenado por conveniência
 - `order_id` com `cascadeOnDelete()`
 
@@ -164,6 +165,9 @@ products        → compõe   →    order_items
 **Problemas encontrados e resolvidos na Fase 2** *(registrado para referência futura)*:
 - `Unknown format "cnpj"` no Faker → causado pela linha padrão `'faker_locale' => env('APP_FAKER_LOCALE', 'pt_BR')` em `config/app.php` não estar de fato resolvendo para `pt_BR` (conflito com `.env`/cache). Corrigido fixando o valor diretamente: `'faker_locale' => 'pt_BR'`
 - `Class "App\Enums\OrderStatus" not found` → o `php artisan make:enum OrderStatus` criou o arquivo em diretório diferente do esperado. Corrigido movendo o arquivo para `app/Enums/OrderStatus.php`, compatível com o namespace `App\Enums` (PSR-4)
+
+### Ajustes pós-Fase 2
+- [x] `order_items.quantity` alterado de `unsignedInteger` para `decimal(10,2)`, via migration adicional (`change_quantity_to_decimal_in_order_items_table`) usando `->change()`. Motivo: permitir quantidades fracionárias (venda por peso/medida). `$casts` do Model `OrderItem` e `OrderItemFactory` (com `randomFloat`) atualizados de acordo
 
 ---
 
@@ -285,4 +289,4 @@ php artisan config:clear
 
 ---
 
-*Última atualização: Fase 2 concluída — migrations, models, relacionamentos, Enum de status, factories e seeders implementados e validados. Próximo passo: Fase 3 — Livewire e CRUD.*
+*Última atualização: Fase 2 concluída e ajustada — migrations, models, relacionamentos, Enum de status, factories e seeders implementados e validados; `order_items.quantity` migrado para `decimal(10,2)` para suportar quantidades fracionárias. Próximo passo: Fase 3 — Livewire e CRUD.*
