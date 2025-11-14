@@ -60,7 +60,7 @@ e pedidos de venda.
 | Decisão | Escolha | Motivo |
 |---|---|---|
 | `orders.status` | Enum PHP nativo (`App\Enums\OrderStatus`), coluna no banco como `string` | Alterar um ENUM nativo do MySQL/MariaDB exige `ALTER TABLE ... MODIFY`, mais custoso. Com `string` + cast de Enum PHP, novos status são adicionados só editando a classe, sem migration |
-| Soft deletes | Apenas em `customers` (`deleted_at`) | `orders` nunca é excluído — nem física nem logicamente — apenas muda de status. É registro histórico imutável |
+| Soft deletes | `customers` e `products` (`deleted_at`) | `orders` nunca é excluído — nem física nem logicamente — apenas muda de status. É registro histórico imutável. `products` recebeu soft delete na Fase 3 para evitar `QueryException` de integridade referencial ao excluir produtos já vinculados a `order_items` |
 | `customers.document` (CPF/CNPJ) | Sem `unique()` por enquanto | Decisão consciente para simplificar a Fase 2; pode ser adicionada depois via nova migration se necessário |
 | `order_items.unit_price` | Copiado do produto no momento da criação do item (nunca referência dinâmica) | Preserva o preço histórico da venda, mesmo que o preço do produto mude depois |
 | `order_items.quantity` | `decimal(10,2)` em vez de inteiro (alterado após Fase 2) | Permite vender produtos por peso/medida fracionária (ex: 2,5 kg), não só unidades inteiras |
@@ -116,6 +116,7 @@ products        → compõe   →    order_items
 **`products`** — produtos disponíveis para venda
 - `active` boolean: permite desativar sem excluir (preserva histórico)
 - `price`: preço atual do produto (`decimal(10,2)`)
+- Soft deletes (`deleted_at`) — adicionado na Fase 3 para permitir exclusão segura mesmo com produtos já vendidos em pedidos anteriores
 
 **`orders`** — cabeçalho do pedido
 - `status`: string no banco, casteado para Enum PHP `App\Enums\OrderStatus` (`aberto`, `confirmado`, `entregue`, `cancelado`)
