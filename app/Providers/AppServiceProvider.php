@@ -27,5 +27,9 @@ class AppServiceProvider extends ServiceProvider
         Gate::define('manage-customers', function ($user) {
             return in_array($user->role, ['admin', 'vendedor']);
         });
+
+        Gate::define('manage-products', function ($user) {
+            return in_array($user->role, ['admin', 'vendedor']);
+        });
     }
 }
