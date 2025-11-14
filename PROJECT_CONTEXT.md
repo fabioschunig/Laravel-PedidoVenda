@@ -179,10 +179,17 @@ products        → compõe   →    order_items
   - `App\Livewire\Customers\Create` e `Edit` — páginas separadas (não modal), com validação via `rules()`
   - Exclusão (soft delete) feita direto no `Index`, protegida por `Gate::authorize()`
 - [x] Rotas de clientes protegidas com `middleware('can:manage-customers')` em criar/editar; listagem acessível a todos autenticados
+- [x] CRUD de Produtos completo via componentes Livewire full-page:
+  - `App\Livewire\Products\Index` — listagem com busca por nome, filtro por status (ativo/inativo/todos) e paginação
+  - `App\Livewire\Products\Create` e `Edit` — páginas separadas, com validação via `rules()`
+  - Ação `toggleActive()` para ativar/desativar sem excluir (`active` boolean)
+  - Exclusão feita via soft delete, protegida por `Gate::authorize()`
+- [x] Soft delete adicionado a `products` via migration adicional (`add_soft_deletes_to_products_table`) — decisão tomada durante a Fase 3, antes mesmo de o problema de FK ocorrer, ao perceber que exclusão física de produto já vendido geraria `QueryException` de integridade referencial
 
 **Problemas encontrados e resolvidos na Fase 3** *(registrado para referência futura)*:
 - `MissingLayoutException: Livewire page component layout view not found: [components.layouts.app]` → Livewire 3, ao usar um componente como página inteira (via rota), procura por padrão um layout em `resources/views/components/layouts/app.blade.php`. O Breeze cria o layout em `resources/views/layouts/app.blade.php` (sem ser Blade component). Corrigido publicando a config (`php artisan livewire:publish --config`) e ajustando `'layout' => 'layouts.app'` em `config/livewire.php`
 - `Uncaught (in promise) TypeError: Alpine.navigate is not a function` ao usar `redirect(..., navigate: true)` → conflito entre a instância do Alpine.js importada manualmente pelo Breeze em `resources/js/app.js` e a instância própria (com plugins) que o Livewire injeta via `@livewireScripts`. Corrigido removendo a importação e inicialização manual do Alpine (`import Alpine from 'alpinejs'`, `window.Alpine = Alpine`, `Alpine.start()`) do `app.js`, deixando o Livewire ser a única fonte do Alpine
+- Decisão preventiva: `products` recebeu soft delete durante a Fase 3 (não na Fase 2) — motivo: exclusão física de um produto já referenciado em `order_items` violaria a FK, já que só `order_items.order_id` tem `cascadeOnDelete()`
 
 ---
 
@@ -202,7 +209,7 @@ products        → compõe   →    order_items
 ### Fase 3 — Livewire e CRUD
 - [X] Instalar o **Livewire**
 - [X] CRUD de Clientes
-- [ ] CRUD de Produtos
+- [X] CRUD de Produtos
 - [ ] Criação e gestão de Pedidos (com itens dinâmicos)
 - [ ] Filtros, paginação e validação em tempo real
 
