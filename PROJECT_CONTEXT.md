@@ -185,6 +185,13 @@ products        → compõe   →    order_items
   - Ação `toggleActive()` para ativar/desativar sem excluir (`active` boolean)
   - Exclusão feita via soft delete, protegida por `Gate::authorize()`
 - [x] Soft delete adicionado a `products` via migration adicional (`add_soft_deletes_to_products_table`) — decisão tomada durante a Fase 3, antes mesmo de o problema de FK ocorrer, ao perceber que exclusão física de produto já vendido geraria `QueryException` de integridade referencial
+- [x] CRUD de Pedidos completo via componentes Livewire full-page:
+  - `App\Livewire\Orders\Index` — listagem com busca por cliente, filtro por status e paginação; botões de transição de status (Confirmar, Entregar, Cancelar) respeitando a ordem do fluxo
+  - `App\Livewire\Orders\Create` e `Edit` — páginas separadas, com itens dinâmicos (adicionar/remover produto, quantidade), preço unitário copiado do produto no momento da adição, subtotal e total calculados ao vivo
+  - `Edit` só é acessível enquanto `status === Aberto`; fora disso, retorna 403
+  - Lógica de manipulação de itens (`addItem`, `removeItem`, cálculo de subtotal/total) extraída para a trait `App\Livewire\Orders\Concerns\HasDynamicOrderItems`, reaproveitada entre `Create` e `Edit`
+  - Tabela de itens do formulário extraída para partial `livewire.orders.partials._customer-and-items-form`, reaproveitada entre `create.blade.php` e `edit.blade.php`
+- [x] Duas Gates para pedidos: `manage-orders` (criar, editar itens, confirmar, entregar — `admin` e `vendedor`) e `cancel-orders` (cancelar — somente `admin`)
 
 **Problemas encontrados e resolvidos na Fase 3** *(registrado para referência futura)*:
 - `MissingLayoutException: Livewire page component layout view not found: [components.layouts.app]` → Livewire 3, ao usar um componente como página inteira (via rota), procura por padrão um layout em `resources/views/components/layouts/app.blade.php`. O Breeze cria o layout em `resources/views/layouts/app.blade.php` (sem ser Blade component). Corrigido publicando a config (`php artisan livewire:publish --config`) e ajustando `'layout' => 'layouts.app'` em `config/livewire.php`
@@ -210,8 +217,8 @@ products        → compõe   →    order_items
 - [X] Instalar o **Livewire**
 - [X] CRUD de Clientes
 - [X] CRUD de Produtos
-- [ ] Criação e gestão de Pedidos (com itens dinâmicos)
-- [ ] Filtros, paginação e validação em tempo real
+- [X] Criação e gestão de Pedidos (com itens dinâmicos)
+- [X] Filtros, paginação e validação em tempo real
 
 ### Fase 4 — Recursos Avançados
 - [ ] Notificações por e-mail
@@ -252,6 +259,7 @@ products        → compõe   →    order_items
 - Variáveis de ambiente sempre via `env()` ou `config()` — nunca hardcoded
 - Migrations para toda alteração de banco — nunca alterar o banco manualmente
 - Um commit por funcionalidade concluída
+- Lógica repetida entre componentes Livewire de páginas diferentes (ex: `Create`/`Edit` do mesmo domínio) vai para uma trait em `Concerns/`; views repetidas entre essas páginas vão para uma partial Blade
 
 ### Ambiente de Desenvolvimento
 - PHP, Composer, Artisan e npm rodam **diretamente no host** Ubuntu
