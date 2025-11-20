@@ -170,7 +170,7 @@ products        → compõe   →    order_items
 ### Ajustes pós-Fase 2
 - [x] `order_items.quantity` alterado de `unsignedInteger` para `decimal(10,2)`, via migration adicional (`change_quantity_to_decimal_in_order_items_table`) usando `->change()`. Motivo: permitir quantidades fracionárias (venda por peso/medida). `$casts` do Model `OrderItem` e `OrderItemFactory` (com `randomFloat`) atualizados de acordo
 
-### Fase 3 — Livewire e CRUD (em andamento)
+### Fase 3 — Livewire e CRUD
 - [x] Livewire instalado (`composer require livewire/livewire`)
 - [x] `@livewireStyles` e `@livewireScripts` adicionados ao `layouts/app.blade.php`
 - [x] Gate `manage-customers` criada no `AppServiceProvider` (regra: `admin` e `vendedor` têm acesso total; `visualizador` só leitura)
@@ -319,4 +319,4 @@ php artisan config:clear
 
 ---
 
-*Última atualização: Fase 3 iniciada — instalação do Livewire e CRUD de Clientes. Próximo passo: Fase 3 — CRUD de produtos.*
+*Última atualização: Fase 3 concluída — CRUD de Clientes, Produtos e Pedidos via Livewire. Próximo passo: Fase 4 — Testes com Pest.*
